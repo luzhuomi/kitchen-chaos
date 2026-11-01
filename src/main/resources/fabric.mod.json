@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "kitchen-chaos",
+	"version": "${version}",
+	"name": "Kitchen Chaos",
+	"description": "An Overcooked-style multiplayer cooking challenge for Minecraft servers. Gather ingredients from the pantry, cook at the stove, and serve orders to the bell before time runs out.",
+	"authors": [
+		"luzm"
+	],
+	"license": "MIT",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"dev.cookingchaos.CookingChaosMod"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.16",
+		"minecraft": "~1.21",
+		"java": ">=21"
+	},
+	"suggests": {
+		"fabric-api": "*"
+	}
+}
