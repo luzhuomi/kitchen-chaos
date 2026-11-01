@@ -13,6 +13,7 @@ import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.sounds.SoundEvents
+import net.minecraft.world.effect.MobEffectInstance
 import net.minecraft.sounds.SoundSource
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.item.Item
@@ -33,7 +34,7 @@ object Game:
   import Recipes.*
 
   // Tuning knobs
-  val RoundSeconds = 300
+  val DefaultRoundSeconds = 300
   val MaxLives = 3
   val MaxConcurrentOrders = 4
   val OrderGapSeconds = 12
@@ -54,6 +55,10 @@ object Game:
     var state = 0 // 0 empty, 1 cooking, 2 ready
 
   private var phase = Phase.Idle
+  private var theme: Theme = Themes.classic
+  private val roundSeconds = 300
+  private var tutorial = false
+  private val tutorialSteps = mutable.Map[UUID, Int]()
   private val participants = mutable.LinkedHashSet[UUID]()
   private var score = 0
   private var combo = 0
@@ -68,6 +73,54 @@ object Game:
 
   def isRunning: Boolean = phase == Phase.Running
   def isParticipant(player: ServerPlayer): Boolean = participants.contains(player.getUUID)
+  def currentTheme: Theme = theme
+
+  def setTheme(id: String): Option[Theme] =
+    val found = Themes.byId(id)
+    found.foreach(theme = _)
+    found
+
+  // --- tutorial mode: one player, one slow order, step-by-step hints ---
+
+  def startTutorial(player: ServerPlayer): String =
+    if phase == Phase.Running then return "A round is already running. Use /cook stop first."
+    phase = Phase.Running
+    tutorial = true
+    participants.clear()
+    participants += player.getUUID
+    score = 0
+    combo = 0
+    bestCombo = 0
+    lives = MaxLives
+    nextOrderTick = Long.MaxValue / 4
+    elapsedTicks = 0L
+    orders.clear()
+    stations.clear()
+    pantryCooldown.clear()
+    val dish = theme.dishes.find(d => d.ingredients.exists(Recipes.cookable.contains)).getOrElse(theme.dishes.head)
+    val order = Order(dish, 1)
+    order.deadlineTick = Long.MaxValue / 2
+    orders += order
+    tutorialSteps(player.getUUID) = 1
+    message(player, s"Tutorial: make a ${dish.name}. Follow the hints in your action bar.", ChatFormatting.GOLD)
+    "Tutorial started - follow the action-bar hints."
+
+  private def advanceTutorial(player: ServerPlayer): Unit =
+    if !tutorial then return
+    val uuid = player.getUUID
+    val step = tutorialSteps.getOrElse(uuid, 0)
+    if step >= 1 && step <= 3 then
+      tutorialSteps(uuid) = step + 1
+      message(player, Hud.stepText(step + 1), ChatFormatting.AQUA)
+
+  private def finishTutorial(player: ServerPlayer): Unit =
+    tutorial = false
+    phase = Phase.Idle
+    participants.clear()
+    orders.clear()
+    stations.clear()
+    tutorialSteps.clear()
+    message(player, "Tutorial complete! Start a real game: /cook join, then /cook start.", ChatFormatting.GREEN)
 
   def join(player: ServerPlayer): String =
     if participants.contains(player.getUUID) then "You are already in the kitchen."
@@ -86,9 +139,11 @@ object Game:
     participants -= uuid
     pantryCooldown -= uuid
 
-  def start(server: MinecraftServer): String =
+  def start(server: MinecraftServer, themeId: String): String =
     if phase == Phase.Running then return "A round is already running."
     if participants.isEmpty then return "Nobody in the lobby. Use /cook join first."
+    if themeId.nonEmpty && setTheme(themeId).isEmpty then
+      return s"Unknown theme '$themeId'. Use /cook themes to list them."
     phase = Phase.Running
     score = 0
     combo = 0
@@ -99,10 +154,18 @@ object Game:
     orders.clear()
     stations.clear()
     pantryCooldown.clear()
-    broadcast(server, Component
-      .literal("The kitchen is OPEN! Serve orders at the bell before time runs out.")
-      .withStyle(ChatFormatting.GOLD))
-    s"Round started with ${participants.size} cook(s)."
+    theme.speedEffect.foreach { effect =>
+      participants.foreach { uuid =>
+        Option(server.getPlayerList.getPlayer(uuid)).foreach(_.addEffect(MobEffectInstance(effect, roundSeconds * 20, 0, false, true)))
+      }
+    }
+    broadcast(
+      server,
+      Component
+        .literal(s"The ${theme.name} kitchen is OPEN! Serve orders at the bell before time runs out.")
+        .withStyle(ChatFormatting.GOLD)
+    )
+    s"Round started in ${theme.name} with ${participants.size} cook(s)."
 
   def stop(server: MinecraftServer): String =
     if phase != Phase.Running then return "No round is running."
@@ -114,11 +177,12 @@ object Game:
     elapsedTicks += 1
     tickStations(server)
     if phase == Phase.Running then
-      tickOrders(server)
-      if phase == Phase.Running then
-        spawnOrders(server)
-        if elapsedTicks >= RoundSeconds * 20L then endRound(server, aborted = false)
-        else Hud.update(server, participants)
+      if !tutorial then
+        tickOrders(server)
+        if phase == Phase.Running then
+          spawnOrders(server)
+          if elapsedTicks >= roundSeconds * 20L then endRound(server, aborted = false)
+      if phase == Phase.Running then Hud.update(server, participants)
 
   private def tickStations(server: MinecraftServer): Unit =
     stations.foreach { (_, st) =>
@@ -131,7 +195,7 @@ object Game:
             .literal(s"${itemName(st.output)} is ready on the stove - grab it before it burns!")
             .withStyle(ChatFormatting.YELLOW)
         )
-      else if st.state == 2 && elapsedTicks - st.readyAtTick > BurnGraceTicks then
+      else if st.state == 2 && elapsedTicks - st.readyAtTick > theme.burnGraceTicks then
         st.state = 0
         st.output = null
         broadcast(server, Component.literal("Something burned on the stove!").withStyle(ChatFormatting.RED))
@@ -154,12 +218,12 @@ object Game:
   private def spawnOrders(server: MinecraftServer): Unit =
     val maxOrders = math.min(MaxConcurrentOrders, participants.size + 1)
     if elapsedTicks >= nextOrderTick && orders.size < maxOrders then
-      val dish = dishes(rng.nextInt(dishes.size))
+      val dish = theme.dishes(rng.nextInt(theme.dishes.size))
       val servings = if rng.nextInt(100) < 30 then 2 else 1
       val order = Order(dish, servings)
-      order.deadlineTick = elapsedTicks + dish.timeLimitSeconds * 20L
+      order.deadlineTick = elapsedTicks + (dish.timeLimitSeconds * theme.timeScale).toLong * 20L
       orders += order
-      nextOrderTick = elapsedTicks + OrderGapSeconds * 20L
+      nextOrderTick = elapsedTicks + theme.orderGapSeconds * 20L
       broadcast(
         server,
         Component
@@ -179,6 +243,9 @@ object Game:
         stack.shrink(1)
         order.fulfilled += 1
         if order.fulfilled >= order.servings then
+          if tutorial then
+            finishTutorial(player)
+            return
           orders -= order
           combo += 1
           bestCombo = math.max(bestCombo, combo)
@@ -204,10 +271,16 @@ object Game:
     pantryCooldown(uuid) = elapsedTicks
     val pool =
       if orders.nonEmpty then orders.flatMap(o => o.dish.ingredients).distinct
-      else dishes.flatMap(_.ingredients).distinct
-    val stack = ItemStack(pool(rng.nextInt(pool.size)))
-    if !player.getInventory.add(stack) then player.drop(stack, false)
-    message(player, s"Pantry: ${stack.getHoverName.getString}", ChatFormatting.GRAY)
+      else theme.dishes.flatMap(_.ingredients).distinct
+    val give = if theme.doublePantry then 2 else 1
+    (1 to give).foreach { _ =>
+      val stack = ItemStack(pool(rng.nextInt(pool.size)))
+      // capture the name first: Inventory.add mutates the stack (count -> 0 on success)
+      val name = stack.getHoverName.getString
+      if !player.getInventory.add(stack) then player.drop(stack, false)
+      message(player, s"Pantry: $name", ChatFormatting.GRAY)
+    }
+    advanceTutorial(player)
 
   /** Right-click on a campfire/smoker: start cooking, check progress, or collect the result. */
   def useStove(player: ServerPlayer, pos: BlockPos): Unit =
@@ -222,6 +295,7 @@ object Game:
             st.doneAtTick = elapsedTicks + ticks
             st.state = 1
             message(player, "Cooking...", ChatFormatting.GRAY)
+            advanceTutorial(player)
           case Some(_) =>
             message(player, "Hold the raw ingredient in your main hand.", ChatFormatting.GRAY)
           case None =>
@@ -235,11 +309,15 @@ object Game:
         st.state = 0
         st.output = null
         val stack = ItemStack(out)
+        val name = stack.getHoverName.getString
         if !player.getInventory.add(stack) then player.drop(stack, false)
-        message(player, s"Grabbed ${stack.getHoverName.getString}.", ChatFormatting.GREEN)
+        message(player, s"Grabbed $name.", ChatFormatting.GREEN)
+        advanceTutorial(player)
 
   private def endRound(server: MinecraftServer, aborted: Boolean): Unit =
     phase = Phase.Idle
+    tutorial = false
+    tutorialSteps.clear()
     orders.clear()
     stations.clear()
     val reason =
@@ -267,10 +345,12 @@ object Game:
 
   // --- helpers and read-only views for the HUD ---
 
+  private[cookingchaos] def isTutorial: Boolean = tutorial
+  private[cookingchaos] def tutorialStepFor(uuid: UUID): Int = tutorialSteps.getOrElse(uuid, 0)
   private[cookingchaos] def currentScore: Int = score
   private[cookingchaos] def currentCombo: Int = combo
   private[cookingchaos] def currentLives: Int = lives
-  private[cookingchaos] def secondsLeft: Long = math.max(0L, RoundSeconds - elapsedTicks / 20)
+  private[cookingchaos] def secondsLeft: Long = math.max(0L, roundSeconds - elapsedTicks / 20)
   private[cookingchaos] def activeOrders: List[Order] = orders.toList
   private[cookingchaos] def secondsUntil(deadlineTick: Long): Long =
     math.max(0L, (deadlineTick - elapsedTicks) / 20)

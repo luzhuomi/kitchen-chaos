@@ -8,9 +8,15 @@ before the customers run out of patience.
 
 ## How to play
 
+> **New here?** Run `/cook tutorial` — it walks you through the whole loop step by step
+> (get an ingredient from the barrel → cook it → collect it → serve at the bell), with live
+> hints in your action bar. No timer, no hearts, no pressure.
+
 1. **Get a kitchen** — either run `/cook kitchen` (op) to auto-build a starter kitchen in front of you,
    or build one yourself out of vanilla blocks:
-   - 🛢️ **Barrel** = pantry (right-click to receive an ingredient that is currently needed)
+   - 🛢️ **Barrel** = pantry (right-click to receive an ingredient that is currently needed) —
+     **you never need to forage**: the pantry hands out everything the orders require, like
+     Overcooked's infinite ingredient bins. Auto-built kitchens have instruction signs at the front.
    - 🔥 **Campfire or smoker** = stove (right-click with a raw ingredient to cook it, right-click again to collect; leave it too long and it burns!)
    - 🔔 **Bell** = service window (right-click while holding a requested dish to serve it)
 2. Players join: `/cook join`
@@ -28,6 +34,9 @@ round is running. Two ways to get a kitchen:
 - **Build your own** — any barrels, campfires/smokers and bells anywhere in the world act as
   pantry/stoves/service windows. Get creative: separate stations across rooms or floors for harder
   maps, like Overcooked's split kitchens.
+- **Remove them** — `/cook clear` removes the most recently auto-built kitchen, `/cook clear all`
+  removes every kitchen built since the server started. (Hand-built blocks are never touched;
+  anything players built *inside* an auto-built kitchen's area is removed along with it.)
 
 ### Rules
 
@@ -40,15 +49,41 @@ round is running. Two ways to get a kitchen:
 
 | Command | Who | Description |
 |---|---|---|
+| `/cook tutorial` | everyone | Guided 4-step tutorial: pantry → stove → serve |
 | `/cook join` | everyone | Join the lobby / rejoin a running round |
 | `/cook leave` | everyone | Leave the kitchen |
-| `/cook start` | op (level 2) | Start a 5-minute round |
-| `/cook kitchen` | op (level 2) | Auto-build a starter kitchen in front of you |
+| `/cook start [theme]` | op (level 2) | Start a round (optionally in a theme) |
+| `/cook kitchen [theme]` | op (level 2) | Auto-build a themed kitchen in front of you |
+| `/cook clear` | op (level 2) | Remove the most recently built kitchen |
+| `/cook clear all` | op (level 2) | Remove all kitchens built this server session |
+| `/cook themes` | everyone | List all kitchen themes |
 | `/cook stop` | op (level 2) | End the round early |
 | `/cook menu` | everyone | Show today's menu (dishes, points, ingredients) |
 | `/cook help` | everyone | Quick usage help |
 
-### The menu
+### Kitchen themes
+
+Pick a theme with `/cook kitchen <theme>` (builds the matching kitchen) and start a themed round
+with `/cook start <theme>`. Each theme has its own block palette, menu, and rules twist.
+
+| Theme | Kitchen | Twist |
+|---|---|---|
+| `classic` | Classic Diner | The baseline rules |
+| `halloween` | The Witch's Kitchen — spruce, carved pumpkins, soul campfires | Witch's Brew, Pumpkin Soup, Cobweb Cake |
+| `pirate` | The Salty Galley — dark oak, prismarine, sea lanterns | Fast orders ("the tide waits for no chef") |
+| `nether` | Hell's Kitchen — blackstone, basalt, soul fire | Faster orders, dishes burn twice as fast |
+| `winter` | North Pole Diner — blue ice, white concrete | Generous timers, big-ticket roasts and cakes |
+| `sushi` | Sakura Counter — cherry planks, bamboo | Quick prep; risky Pufferfish Sashimi (300 pts) |
+| `medieval` | The Prancing Pony Tavern — stone bricks, deepslate | Feast orders: long timers, multi-serving demands |
+| `space` | Canteen Zero-G — quartz, copper, end rods | Everyone gets Slow Falling |
+| `candy` | The Sugar Factory — pink/red concrete, shroomlight | Desserts only, rapid orders, Speed boost |
+| `harvest` | Farmhouse BBQ — birch, hay bales | Pantry hands out double portions |
+| `jungle` | Treetop Restaurant — jungle planks, moss | Everyone gets Jump Boost |
+
+Add or edit themes in [`Themes.scala`](src/main/scala/dev/cookingchaos/Themes.scala) — a theme is
+just a block palette + dish list + timing modifiers.
+
+### The menu (classic)
 
 | Dish | Points | How to make it |
 |---|---|---|

@@ -20,7 +20,7 @@ object Interactions:
           if state.is(Blocks.BARREL) then
             Game.pantry(p)
             InteractionResult.SUCCESS
-          else if state.is(Blocks.CAMPFIRE) || state.is(Blocks.SMOKER) then
+          else if state.is(Blocks.CAMPFIRE) || state.is(Blocks.SOUL_CAMPFIRE) || state.is(Blocks.SMOKER) then
             Game.useStove(p, hitResult.getBlockPos)
             InteractionResult.SUCCESS
           else if state.is(Blocks.BELL) then

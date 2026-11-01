@@ -1,11 +1,14 @@
 package dev.cookingchaos
 
 import com.mojang.brigadier.context.CommandContext
+import com.mojang.brigadier.arguments.StringArgumentType
+import scala.jdk.CollectionConverters.*
 
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback
 import net.minecraft.ChatFormatting
 import net.minecraft.commands.CommandSourceStack
 import net.minecraft.commands.Commands
+import net.minecraft.commands.SharedSuggestionProvider
 import net.minecraft.network.chat.Component
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
@@ -23,7 +26,8 @@ object CookCommand:
           .`then`(
             Commands.literal("start")
               .requires(src => src.hasPermission(2))
-              .executes(ctx => withServer(ctx, Game.start))
+              .executes(ctx => withServer(ctx, s => Game.start(s, "")))
+              .`then`(themeArgument("theme", ctx => withServer(ctx, s => Game.start(s, StringArgumentType.getString(ctx, "theme")))))
           )
           .`then`(
             Commands.literal("stop")
@@ -34,18 +38,52 @@ object CookCommand:
             Commands.literal("kitchen")
               .requires(src => src.hasPermission(2))
               .executes(ctx => withPlayer(ctx, KitchenBuilder.build))
+              .`then`(themeArgument("theme", ctx => withPlayer(ctx, p => setThemeThenBuild(ctx, p))))
           )
+          .`then`(
+            Commands.literal("clear")
+              .requires(src => src.hasPermission(2))
+              .executes(ctx => withPlayer(ctx, p => KitchenBuilder.clear(p, all = false)))
+              .`then`(
+                Commands.literal("all")
+                  .executes(ctx => withPlayer(ctx, p => KitchenBuilder.clear(p, all = true)))
+              )
+          )
+          .`then`(Commands.literal("tutorial").executes(ctx => withPlayer(ctx, Game.startTutorial)))
+          .`then`(Commands.literal("themes").executes(ctx => themes(ctx)))
           .`then`(Commands.literal("menu").executes(ctx => menu(ctx)))
       )
     )
+
+  private def themeArgument(name: String, body: CommandContext[CommandSourceStack] => Int) =
+    Commands.argument(name, StringArgumentType.word())
+      .suggests((_, builder) => SharedSuggestionProvider.suggest(Themes.all.map(_.id).asJava, builder))
+      .executes(ctx => body(ctx))
+
+  private def setThemeThenBuild(ctx: CommandContext[CommandSourceStack], p: ServerPlayer): String =
+    val id = StringArgumentType.getString(ctx, "theme")
+    Game.setTheme(id) match
+      case Some(t) => s"Theme set to ${t.name}. " + KitchenBuilder.build(p)
+      case None => s"Unknown theme '$id'. Use /cook themes to list them."
+
+  private def themes(ctx: CommandContext[CommandSourceStack]): Int =
+    ctx.getSource.sendSuccess(() => Component.literal("Kitchen themes:").withStyle(ChatFormatting.GOLD), false)
+    Themes.all.foreach { t =>
+      ctx.getSource.sendSuccess(
+        () => Component.literal(s"/cook kitchen ${t.id} - ${t.name} (${t.dishes.size} dishes)").withStyle(ChatFormatting.AQUA),
+        false
+      )
+    }
+    1
 
   private def help(ctx: CommandContext[CommandSourceStack]): Int =
     ctx.getSource.sendSuccess(
       () =>
         Component
           .literal(
-            "Kitchen Chaos: /cook kitchen (op, builds a starter kitchen in front of you), /cook join, " +
-              "/cook start (op), /cook stop (op), /cook leave, /cook menu. " +
+            "Kitchen Chaos: /cook tutorial (learn by playing!), /cook themes, /cook kitchen [theme] (op), " +
+              "/cook clear [all] (op), /cook join, /cook start [theme] (op), /cook stop (op), " +
+              "/cook leave, /cook menu. " +
               "Barrel = pantry, campfire/smoker = stove, bell = service window."
           )
           .withStyle(ChatFormatting.YELLOW),
@@ -55,10 +93,10 @@ object CookCommand:
 
   private def menu(ctx: CommandContext[CommandSourceStack]): Int =
     ctx.getSource.sendSuccess(
-      () => Component.literal("Today's menu:").withStyle(ChatFormatting.GOLD),
+      () => Component.literal(s"Today's menu (${Game.currentTheme.name}):").withStyle(ChatFormatting.GOLD),
       false
     )
-    Recipes.dishes.foreach { d =>
+    Game.currentTheme.dishes.foreach { d =>
       val ingredients = d.ingredients.map(i => ItemStack(i).getHoverName.getString).mkString(", ")
       ctx.getSource.sendSuccess(
         () =>
