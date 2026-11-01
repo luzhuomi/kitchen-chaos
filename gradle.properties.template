@@ -2,7 +2,7 @@
 org.gradle.jvmargs=-Xmx2G
 org.gradle.parallel=true
 # Fabric Loom 1.19 requires Gradle to run on Java 25+; the mod itself still targets Java 21 (MC 1.21).
-org.gradle.java.home=/home/luzm/jdks/jdk-25.0.5+8
+org.gradle.java.home=/path/to/jdk-25.0.5+8
 
 # Fabric Properties
 # check these on https://fabricmc.net/develop
