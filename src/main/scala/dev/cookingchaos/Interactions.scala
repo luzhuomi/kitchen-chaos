@@ -23,6 +23,12 @@ object Interactions:
           else if state.is(Blocks.CAMPFIRE) || state.is(Blocks.SOUL_CAMPFIRE) || state.is(Blocks.SMOKER) then
             Game.useStove(p, hitResult.getBlockPos)
             InteractionResult.SUCCESS
+          else if state.is(Blocks.STONECUTTER) then
+            Game.cut(p)
+            InteractionResult.SUCCESS
+          else if state.is(Blocks.WATER_CAULDRON) then
+            Game.wash(p)
+            InteractionResult.SUCCESS
           else if state.is(Blocks.BELL) then
             Game.serve(p)
             InteractionResult.SUCCESS

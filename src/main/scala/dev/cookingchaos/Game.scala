@@ -2,10 +2,13 @@ package dev.cookingchaos
 
 import java.util.UUID
 import scala.collection.mutable
+import scala.jdk.CollectionConverters.*
 import scala.util.Random
 
 import net.minecraft.ChatFormatting
 import net.minecraft.core.BlockPos
+import net.minecraft.core.component.DataComponents
+import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.chat.Component
 import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket
 import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket
@@ -18,6 +21,8 @@ import net.minecraft.sounds.SoundSource
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.component.CustomData
+import net.minecraft.world.item.component.ItemLore
 
 /**
  * Holds the state of one cooking-challenge round.
@@ -97,7 +102,11 @@ object Game:
     orders.clear()
     stations.clear()
     pantryCooldown.clear()
-    val dish = theme.dishes.find(d => d.ingredients.exists(Recipes.cookable.contains)).getOrElse(theme.dishes.head)
+    // pick a prep-free stove dish so the tutorial stays a simple 4-step loop
+    val dish = theme.dishes
+      .find(d => d.prep.isEmpty && d.ingredients.exists(i => cookable.get(i).exists(_._3.isEmpty)))
+      .orElse(theme.dishes.find(d => d.ingredients.exists(cookable.contains)))
+      .getOrElse(theme.dishes.head)
     val order = Order(dish, 1)
     order.deadlineTick = Long.MaxValue / 2
     orders += order
@@ -240,6 +249,9 @@ object Game:
     matching match
       case Some(order) =>
         val stack = hands.find(s => !s.isEmpty && s.getItem == order.dish.output).get
+        if order.dish.prep.exists(p => !isTagged(stack, p)) then
+          message(player, s"The ${order.dish.name} must be ${order.dish.prep.get.label.toLowerCase} first!", ChatFormatting.RED)
+          return
         stack.shrink(1)
         order.fulfilled += 1
         if order.fulfilled >= order.servings then
@@ -289,7 +301,10 @@ object Game:
       case 0 =>
         val held = player.getItemInHand(InteractionHand.MAIN_HAND)
         cookable.get(held.getItem) match
-          case Some((out, ticks)) if !held.isEmpty =>
+          case Some((out, ticks, prep)) if !held.isEmpty =>
+            if prep.exists(p => !isTagged(held, p)) then
+              message(player, s"That must be ${prep.get.label.toLowerCase} first - use the prep station!", ChatFormatting.RED)
+              return
             held.shrink(1)
             st.output = out
             st.doneAtTick = elapsedTicks + ticks
@@ -313,6 +328,38 @@ object Game:
         if !player.getInventory.add(stack) then player.drop(stack, false)
         message(player, s"Grabbed $name.", ChatFormatting.GREEN)
         advanceTutorial(player)
+
+  /** Right-click on a stonecutter: chop ingredients that dishes require chopped. */
+  def cut(player: ServerPlayer): Unit = prepStation(player, PrepKind.Chopped)
+
+  /** Right-click on a water cauldron: wash ingredients that dishes require washed. */
+  def wash(player: ServerPlayer): Unit = prepStation(player, PrepKind.Washed)
+
+  private def prepStation(player: ServerPlayer, kind: PrepKind): Unit =
+    val held = player.getItemInHand(InteractionHand.MAIN_HAND)
+    if held.isEmpty then
+      message(player, "Hold an ingredient in your main hand.", ChatFormatting.GRAY)
+      return
+    val relevant =
+      cookable.get(held.getItem).exists(_._3.contains(kind)) ||
+        theme.dishes.exists(d => d.prep.contains(kind) && d.ingredients.contains(held.getItem))
+    if !relevant then message(player, "This ingredient needs no prep here.", ChatFormatting.GRAY)
+    else if isTagged(held, kind) then message(player, "Already prepped.", ChatFormatting.GRAY)
+    else tagPrepped(player, held, kind)
+
+  private def prepKey(kind: PrepKind): String = "kc_" + kind.id
+
+  private def isTagged(stack: ItemStack, kind: PrepKind): Boolean =
+    Option(stack.get(DataComponents.CUSTOM_DATA)).exists(_.getUnsafe.getBoolean(prepKey(kind)))
+
+  private def tagPrepped(player: ServerPlayer, stack: ItemStack, kind: PrepKind): Unit =
+    CustomData.update(DataComponents.CUSTOM_DATA, stack, (tag: CompoundTag) => tag.putBoolean(prepKey(kind), true))
+    val existing = Option(stack.get(DataComponents.LORE)).map(_.lines().asScala.toList).getOrElse(Nil)
+    stack.set(
+      DataComponents.LORE,
+      ItemLore((existing :+ Component.literal(kind.label).withStyle(ChatFormatting.ITALIC, ChatFormatting.GREEN)).asJava)
+    )
+    message(player, s"${kind.label}: ${stack.getHoverName.getString}", ChatFormatting.AQUA)
 
   private def endRound(server: MinecraftServer, aborted: Boolean): Unit =
     phase = Phase.Idle

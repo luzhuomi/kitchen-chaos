@@ -33,8 +33,9 @@ object Themes:
       output: net.minecraft.world.item.Item,
       points: Int,
       time: Int,
-      ingredients: List[net.minecraft.world.item.Item]
-  ): Dish = Dish(name, output, points, time, ingredients)
+      ingredients: List[net.minecraft.world.item.Item],
+      prep: Option[PrepKind] = None
+  ): Dish = Dish(name, output, points, time, ingredients, prep)
 
   val classic: Theme = Theme(
     id = "classic",
@@ -110,7 +111,7 @@ object Themes:
     dishes = List(
       dish("Tuna Nigiri", Items.COOKED_SALMON, 130, 70, List(Items.SALMON)),
       dish("Kelp Roll", Items.DRIED_KELP, 60, 50, List(Items.KELP)),
-      dish("Pufferfish Sashimi", Items.PUFFERFISH, 300, 60, List(Items.PUFFERFISH)),
+      dish("Pufferfish Sashimi", Items.PUFFERFISH, 300, 60, List(Items.PUFFERFISH), Some(PrepKind.Washed)),
       dish("Rice Ball", Items.BREAD, 110, 70, List(Items.WHEAT))
     ),
     floor = Blocks.CHERRY_PLANKS, wall = Blocks.BAMBOO_BLOCK, light = Blocks.LANTERN, stove = Blocks.CAMPFIRE,
@@ -175,7 +176,7 @@ object Themes:
     dishes = List(
       dish("Jungle Stew", Items.SUSPICIOUS_STEW, 170, 110, List(Items.BOWL, Items.RED_MUSHROOM, Items.BROWN_MUSHROOM, Items.DANDELION)),
       dish("Cacao Cake", Items.CAKE, 260, 140, List(Items.WHEAT, Items.COCOA_BEANS, Items.EGG, Items.MILK_BUCKET)),
-      dish("Melon Sorbet", Items.MELON_SLICE, 60, 50, List(Items.MELON_SLICE)),
+      dish("Melon Sorbet", Items.MELON_SLICE, 60, 50, List(Items.MELON_SLICE), Some(PrepKind.Washed)),
       dish("Bug Stir-Fry", Items.COOKED_CHICKEN, 110, 80, List(Items.CHICKEN))
     ),
     floor = Blocks.JUNGLE_PLANKS, wall = Blocks.MOSS_BLOCK, light = Blocks.LANTERN, stove = Blocks.CAMPFIRE,

@@ -55,8 +55,10 @@ object KitchenBuilder:
     for l <- -4 to 4 do set(at(6, l, 1), theme.wall)
     for l <- List(-2, 0, 2) do set(at(6, l, 1), Blocks.BARREL)
 
-    // corner lights
-    for f <- List(0, 6); l <- List(-4, 4) do set(at(f, l, 2), theme.light)
+    // corner lights (the front pair hangs above the sign posts so signs don't replace them)
+    for l <- List(-4, 4) do
+      set(at(6, l, 2), theme.light)
+      set(at(0, l, 3), theme.light)
 
     // stoves in the middle row
     for l <- List(-2, 0, 2) do set(at(4, l, 1), theme.stove)
@@ -65,12 +67,16 @@ object KitchenBuilder:
     set(at(5, -3, 1), Blocks.CRAFTING_TABLE)
     set(at(5, 3, 1), Blocks.CRAFTING_TABLE)
 
+    // mise en place: stonecutter (chopping) and water cauldron (washing)
+    set(at(3, -3, 1), Blocks.STONECUTTER)
+    set(at(3, 3, 1), Blocks.WATER_CAULDRON)
+
     // service window: bell on a fence post at the front
     set(at(1, 0, 1), Blocks.OAK_FENCE)
     set(at(1, 0, 2), Blocks.BELL)
 
     // instruction signs at the front corners
-    val rules = List("KITCHEN RULES", "Barrel = pantry", "Campfire = stove", "Bell = serve")
+    val rules = List("KITCHEN RULES", "Barrel pantry Bell serve", "Campfire stove", "Cutter cut Cauldron wash")
     for l <- List(-4, 4) do
       set(at(0, l, 1), Blocks.OAK_FENCE)
       sign(at(0, l, 2), rules)
