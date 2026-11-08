@@ -10,19 +10,24 @@ import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.SignBlockEntity
 
 /**
- * Builds a starter kitchen on a 9x7 platform a few blocks in front of the player:
- * barrels (pantry) at the back, campfires (stoves) in the middle,
- * crafting tables (prep) on the sides, and a bell (service window) at the front.
+ * Builds a kitchen a few blocks in front of the player, using the current theme's palette.
+ *  - galley: one 9x7 room, stations in rows with a walkway to the service bell
+ *  - split: two rooms (pantry + prep | hot line + baking + service) divided by a wall
+ *    with two doorways - Overcooked-2 style, cooks must carry ingredients between rooms
  */
 object KitchenBuilder:
   // bounding boxes (minX,minY,minZ,maxX,maxY,maxZ) of kitchens built this server session
   private val built = mutable.Stack[(Int, Int, Int, Int, Int, Int)]()
 
-  def build(player: ServerPlayer): String =
+  def build(player: ServerPlayer): String = buildKitchen(player, split = false)
+  def buildSplit(player: ServerPlayer): String = buildKitchen(player, split = true)
+
+  private def buildKitchen(player: ServerPlayer, split: Boolean): String =
     val level = player.level
     val dir = player.getDirection
     val right = dir.getClockWise
     val base = player.blockPosition.offset(dir.getStepX * 4, 0, dir.getStepZ * 4)
+    val halfWidth = if split then 7 else 4
 
     def at(forward: Int, lateral: Int, dy: Int): BlockPos =
       base.offset(
@@ -46,50 +51,58 @@ object KitchenBuilder:
         case _ => ()
 
     // floor platform + clear headroom
-    for f <- 0 to 6; l <- -4 to 4 do
+    for f <- 0 to 6; l <- -halfWidth to halfWidth do
       set(at(f, l, 0), theme.floor)
       set(at(f, l, 1), Blocks.AIR)
       set(at(f, l, 2), Blocks.AIR)
 
-    // themed back wall, then pantry barrels set into it
-    for l <- -4 to 4 do set(at(6, l, 1), theme.wall)
-    for l <- List(-2, 0, 2) do set(at(6, l, 1), Blocks.BARREL)
+    // themed back wall, stations set into it
+    for l <- -halfWidth to halfWidth do set(at(6, l, 1), theme.wall)
 
-    // corner lights (the front pair hangs above the sign posts so signs don't replace them)
-    for l <- List(-4, 4) do
-      set(at(6, l, 2), theme.light)
-      set(at(0, l, 3), theme.light)
+    if split then
+      // dividing wall down the middle, doorways at forward 2 and 5
+      for f <- List(1, 3, 4, 6) do set(at(f, 0, 1), theme.wall)
 
-    // stoves in the middle row
-    for l <- List(-2, 0, 2) do set(at(4, l, 1), theme.stove)
+      // left room: pantry + mise en place
+      for l <- List(-2, -4, -6) do set(at(6, l, 1), Blocks.BARREL)
+      set(at(4, -2, 1), Blocks.STONECUTTER)
+      set(at(4, -4, 1), Blocks.WATER_CAULDRON)
 
-    // prep tables for stew/bread/cake orders
-    set(at(5, -3, 1), Blocks.CRAFTING_TABLE)
-    set(at(5, 3, 1), Blocks.CRAFTING_TABLE)
+      // right room: hot line, baking, service window
+      for l <- List(2, 4, 6) do set(at(6, l, 1), theme.stove)
+      set(at(6, 1, 1), Blocks.CRAFTING_TABLE)
+      set(at(1, 4, 1), Blocks.OAK_FENCE)
+      set(at(1, 4, 2), Blocks.BELL)
+    else
+      // galley: pantry row, prep line, hot line, service window
+      for l <- List(-2, 0, 2) do set(at(6, l, 1), Blocks.BARREL)
+      for l <- List(-2, 0, 2) do set(at(4, l, 1), theme.stove)
+      set(at(5, -3, 1), Blocks.CRAFTING_TABLE)
+      set(at(5, 3, 1), Blocks.CRAFTING_TABLE)
+      set(at(3, -3, 1), Blocks.STONECUTTER)
+      set(at(3, 3, 1), Blocks.WATER_CAULDRON)
+      set(at(1, 0, 1), Blocks.OAK_FENCE)
+      set(at(1, 0, 2), Blocks.BELL)
 
-    // mise en place: stonecutter (chopping) and water cauldron (washing)
-    set(at(3, -3, 1), Blocks.STONECUTTER)
-    set(at(3, 3, 1), Blocks.WATER_CAULDRON)
-
-    // service window: bell on a fence post at the front
-    set(at(1, 0, 1), Blocks.OAK_FENCE)
-    set(at(1, 0, 2), Blocks.BELL)
-
-    // instruction signs at the front corners
+    // corner lights; instruction signs on fence posts at the front corners
     val rules = List("KITCHEN RULES", "Barrel pantry Bell serve", "Campfire stove", "Cutter cut Cauldron wash")
-    for l <- List(-4, 4) do
+    for l <- List(-halfWidth, halfWidth) do
+      set(at(6, l, 2), theme.light)
       set(at(0, l, 1), Blocks.OAK_FENCE)
       sign(at(0, l, 2), rules)
+      set(at(0, l, 3), theme.light)
 
     // remember the bounding box so /cook clear can remove it
-    val c1 = at(0, -4, 0)
-    val c2 = at(6, 4, 2)
+    val c1 = at(0, -halfWidth, 0)
+    val c2 = at(6, halfWidth, 3)
     built.push((
       math.min(c1.getX, c2.getX), math.min(c1.getY, c2.getY), math.min(c1.getZ, c2.getZ),
       math.max(c1.getX, c2.getX), math.max(c1.getY, c2.getY), math.max(c1.getZ, c2.getZ)
     ))
 
-    s"Kitchen built in front of you ($placed blocks). Barrel = pantry, campfire = stove, bell = serve. Start with /cook join then /cook start. Remove it with /cook clear."
+    val extra = if split then " The wall splits prep from the hot line - carry ingredients through the doorways!" else ""
+    val what = if split then "Split kitchen" else "Kitchen"
+    s"$what built in front of you ($placed blocks). Barrel = pantry, campfire = stove, bell = serve. Start with /cook join then /cook start. Remove it with /cook clear.$extra"
 
   /** Removes the most recently built kitchen (or all of them). */
   def clear(player: ServerPlayer, all: Boolean): String =
@@ -110,3 +123,4 @@ object KitchenBuilder:
           blocks += 1
     }
     s"Cleared ${regions.size} kitchen(s) ($blocks blocks). Note: anything built inside the kitchen area was removed too."
+end KitchenBuilder

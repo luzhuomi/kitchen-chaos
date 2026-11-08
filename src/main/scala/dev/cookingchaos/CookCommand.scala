@@ -38,7 +38,12 @@ object CookCommand:
             Commands.literal("kitchen")
               .requires(src => src.hasPermission(2))
               .executes(ctx => withPlayer(ctx, KitchenBuilder.build))
-              .`then`(themeArgument("theme", ctx => withPlayer(ctx, p => setThemeThenBuild(ctx, p))))
+              .`then`(themeArgument("theme", ctx => withPlayer(ctx, p => setThemeThenBuild(ctx, p, split = false))))
+              .`then`(
+                Commands.literal("split")
+                  .executes(ctx => withPlayer(ctx, KitchenBuilder.buildSplit))
+                  .`then`(themeArgument("theme", ctx => withPlayer(ctx, p => setThemeThenBuild(ctx, p, split = true))))
+              )
           )
           .`then`(
             Commands.literal("clear")
@@ -60,10 +65,11 @@ object CookCommand:
       .suggests((_, builder) => SharedSuggestionProvider.suggest(Themes.all.map(_.id).asJava, builder))
       .executes(ctx => body(ctx))
 
-  private def setThemeThenBuild(ctx: CommandContext[CommandSourceStack], p: ServerPlayer): String =
+  private def setThemeThenBuild(ctx: CommandContext[CommandSourceStack], p: ServerPlayer, split: Boolean): String =
     val id = StringArgumentType.getString(ctx, "theme")
     Game.setTheme(id) match
-      case Some(t) => s"Theme set to ${t.name}. " + KitchenBuilder.build(p)
+      case Some(t) =>
+        s"Theme set to ${t.name}. " + (if split then KitchenBuilder.buildSplit(p) else KitchenBuilder.build(p))
       case None => s"Unknown theme '$id'. Use /cook themes to list them."
 
   private def themes(ctx: CommandContext[CommandSourceStack]): Int =
@@ -82,8 +88,8 @@ object CookCommand:
         Component
           .literal(
             "Kitchen Chaos: /cook tutorial (learn by playing!), /cook themes, /cook kitchen [theme] (op), " +
-              "/cook clear [all] (op), /cook join, /cook start [theme] (op), /cook stop (op), " +
-              "/cook leave, /cook menu. " +
+              "/cook kitchen split [theme] (op, two-room map), /cook clear [all] (op), /cook join, " +
+              "/cook start [theme] (op), /cook stop (op), /cook leave, /cook menu. " +
               "Barrel = pantry, campfire/smoker = stove, bell = service window."
           )
           .withStyle(ChatFormatting.YELLOW),
