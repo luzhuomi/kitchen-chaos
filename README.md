@@ -17,8 +17,21 @@ before the customers run out of patience.
    - 🛢️ **Barrel** = pantry (right-click to receive an ingredient that is currently needed) —
      **you never need to forage**: the pantry hands out everything the orders require, like
      Overcooked's infinite ingredient bins. Auto-built kitchens have instruction signs at the front.
-   - 🔥 **Campfire or smoker** = stove (right-click with a raw ingredient to cook it, right-click again to collect; leave it too long and it burns!)
+   - 🔪 **Stonecutter** = chopping block (right-click with an ingredient that must be *Chopped*)
+   - 🫧 **Water cauldron** = washing station (right-click with an ingredient that must be *Washed*)
+   - 🔥 **Campfire or smoker** = stove (right-click with a prepared/raw ingredient to cook it, right-click again to collect; leave it too long and it burns!)
    - 🔔 **Bell** = service window (right-click while holding a requested dish to serve it)
+
+### Mise en place
+
+Some dishes require prep before cooking or serving — the pipeline is the challenge:
+
+- **Chopped** (stonecutter): beef, chicken — the stove refuses uncut meat
+- **Washed** (water cauldron): salmon, and raw-serve dishes like *Pufferfish Sashimi* and
+  *Melon Sorbet* — the bell refuses un-prepped dishes
+
+Prepped items get a green *"Chopped"/"Washed"* lore line so you can see their state. Baking
+dishes (bread, cake, stew) never need prep.
 2. Players join: `/cook join`
 3. An operator starts the round: `/cook start` (300-second round)
 4. Orders appear in chat and in your action bar. Serve them before their timer expires.
@@ -34,6 +47,10 @@ round is running. Two ways to get a kitchen:
 - **Build your own** — any barrels, campfires/smokers and bells anywhere in the world act as
   pantry/stoves/service windows. Get creative: separate stations across rooms or floors for harder
   maps, like Overcooked's split kitchens.
+- **Split kitchens** — `/cook kitchen split [theme]` builds an Overcooked-2 style map: a wall
+  divides the kitchen into a **pantry + prep room** (barrels, stonecutter, cauldron) and a
+  **hot line + service room** (stoves, crafting tables, bell), connected by two doorways.
+  Ingredients and cooks must travel between rooms — routing and teamwork become the challenge.
 - **Remove them** — `/cook clear` removes the most recently auto-built kitchen, `/cook clear all`
   removes every kitchen built since the server started. (Hand-built blocks are never touched;
   anything players built *inside* an auto-built kitchen's area is removed along with it.)
@@ -54,6 +71,7 @@ round is running. Two ways to get a kitchen:
 | `/cook leave` | everyone | Leave the kitchen |
 | `/cook start [theme]` | op (level 2) | Start a round (optionally in a theme) |
 | `/cook kitchen [theme]` | op (level 2) | Auto-build a themed kitchen in front of you |
+| `/cook kitchen split [theme]` | op (level 2) | Two-room map: pantry/prep | hot line/service, joined by doorways |
 | `/cook clear` | op (level 2) | Remove the most recently built kitchen |
 | `/cook clear all` | op (level 2) | Remove all kitchens built this server session |
 | `/cook themes` | everyone | List all kitchen themes |
@@ -88,8 +106,8 @@ just a block palette + dish list + timing modifiers.
 | Dish | Points | How to make it |
 |---|---|---|
 | Baked Potato | 60 | Potato → stove |
-| Grilled Steak | 100 | Beef → stove |
-| Roast Chicken | 90 | Chicken → stove |
+| Grilled Steak | 100 | Beef → **chop** → stove |
+| Roast Chicken | 90 | Chicken → **chop** → stove |
 | Grilled Fish | 90 | Cod → stove |
 | Fresh Bread | 120 | Wheat → crafting table (vanilla recipe) |
 | Forest Stew | 150 | Bowl + 2 mushrooms → crafting table (vanilla mushroom stew) |
@@ -150,12 +168,6 @@ src/main/scala/dev/cookingchaos/
   Hud.scala              Action-bar HUD: hearts, score, combo, timer, order tracker
 ```
 
-## Hosting (optional)
-
-If you want infrastructure-as-code hosting, [dirien/pulumi-scala-minecraft](https://github.com/dirien/pulumi-scala-minecraft)
-shows how to provision a DigitalOcean droplet running a Minecraft server with Pulumi + Scala. It is a
-deployment example only — it has nothing to do with modding — but you could adapt it to install the
-Fabric loader plus this mod instead of a vanilla server.
 
 ## License
 
