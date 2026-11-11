@@ -26,7 +26,7 @@ before the customers run out of patience.
 
 Some dishes require prep before cooking or serving — the pipeline is the challenge:
 
-- **Chopped** (stonecutter): beef, chicken — the stove refuses uncut meat
+- **Chopped** (stonecutter): beef, chicken, rabbit — the stove refuses uncut meat
 - **Washed** (water cauldron): salmon, and raw-serve dishes like *Pufferfish Sashimi* and
   *Melon Sorbet* — the bell refuses un-prepped dishes
 
@@ -61,6 +61,10 @@ round is running. Two ways to get a kitchen:
 - Serving dishes back-to-back builds a **combo multiplier** on the score; serving a wrong dish resets it.
 - The pantry is smart: it hands out ingredients that active orders actually need (like Overcooked).
 - Final score and best combo are announced at the end of the round.
+- **Leaderboard:** every round records each cook's best score, best combo, rounds played and
+  total score. `/cook leaderboard` shows the top 10; data persists in
+  `<world>/kitchen-chaos/leaderboard.json` across restarts. Players who beat their best score
+  get a new-record callout in chat.
 
 ### Commands
 
@@ -77,26 +81,41 @@ round is running. Two ways to get a kitchen:
 | `/cook themes` | everyone | List all kitchen themes |
 | `/cook stop` | op (level 2) | End the round early |
 | `/cook menu` | everyone | Show today's menu (dishes, points, ingredients) |
+| `/cook leaderboard` | everyone | Top 10 best scores (persisted across rounds and restarts) |
 | `/cook help` | everyone | Quick usage help |
 
 ### Kitchen themes
 
 Pick a theme with `/cook kitchen <theme>` (builds the matching kitchen) and start a themed round
-with `/cook start <theme>`. Each theme has its own block palette, menu, and rules twist.
+with `/cook start <theme>`. Each theme has its own block palette, menu, and rules twist — and
+most are **locked until your cook level is high enough** (see [Progression](#progression)).
 
-| Theme | Kitchen | Twist |
-|---|---|---|
-| `classic` | Classic Diner | The baseline rules |
-| `halloween` | The Witch's Kitchen — spruce, carved pumpkins, soul campfires | Witch's Brew, Pumpkin Soup, Cobweb Cake |
-| `pirate` | The Salty Galley — dark oak, prismarine, sea lanterns | Fast orders ("the tide waits for no chef") |
-| `nether` | Hell's Kitchen — blackstone, basalt, soul fire | Faster orders, dishes burn twice as fast |
-| `winter` | North Pole Diner — blue ice, white concrete | Generous timers, big-ticket roasts and cakes |
-| `sushi` | Sakura Counter — cherry planks, bamboo | Quick prep; risky Pufferfish Sashimi (300 pts) |
-| `medieval` | The Prancing Pony Tavern — stone bricks, deepslate | Feast orders: long timers, multi-serving demands |
-| `space` | Canteen Zero-G — quartz, copper, end rods | Everyone gets Slow Falling |
-| `candy` | The Sugar Factory — pink/red concrete, shroomlight | Desserts only, rapid orders, Speed boost |
-| `harvest` | Farmhouse BBQ — birch, hay bales | Pantry hands out double portions |
-| `jungle` | Treetop Restaurant — jungle planks, moss | Everyone gets Jump Boost |
+| Theme | Unlock | Kitchen | Twist |
+|---|---|---|---|
+| `classic` | — | Classic Diner | The baseline rules |
+| `halloween` | Lv 2 | The Witch's Kitchen — spruce, carved pumpkins, soul campfires | Witch's Brew, Pumpkin Soup, Cobweb Cake |
+| `christmas` | Lv 2 | Christmas Feast — spruce, red concrete, lanterns | Generous timers, big-ticket roasts and cakes |
+| `harvest` | Lv 2 | Farmhouse BBQ — birch, hay bales | Pantry hands out double portions |
+| `easter` | Lv 2 | The Bunny Burrow — grass, pink concrete, shroomlight | Bunny Stew, Carrot Cake, Dyed Eggs |
+| `pirate` | Lv 3 | The Salty Galley — dark oak, prismarine, sea lanterns | Fast orders ("the tide waits for no chef") |
+| `sushi` | Lv 3 | Sakura Counter — cherry planks, bamboo | Quick prep; risky Pufferfish Sashimi (300 pts) |
+| `candy` | Lv 3 | The Sugar Factory — pink/red concrete, shroomlight | Desserts only, rapid orders, Speed boost |
+| `lunar` | Lv 3 | Spring Festival Banquet — red concrete, gold blocks, lanterns | Long family-feast timers, Lucky Tangerines |
+| `medieval` | Lv 4 | The Prancing Pony Tavern — stone bricks, deepslate | Feast orders: long timers, multi-serving demands |
+| `jungle` | Lv 4 | Treetop Restaurant — jungle planks, moss | Everyone gets Jump Boost |
+| `space` | Lv 5 | Canteen Zero-G — quartz, copper, end rods | Everyone gets Slow Falling |
+| `nether` | Lv 5 | Hell's Kitchen — blackstone, basalt, soul fire | Faster orders, dishes burn twice as fast |
+
+### Progression
+
+Playing rounds earns **cook XP** (`score/10 + 5 per completed order`) and levels (1–10).
+Levels do two things:
+
+- **Unlock themes** — the table above; `/cook themes` shows what's locked and why
+- **Raise the difficulty floor** — every level above 1 tightens the game in any theme:
+  order timers −3 %, order gap −0.5 s, burn grace −5 % (stacking, capped at level 10)
+
+Your level, XP and best scores are shown on `/cook leaderboard` and persist across restarts.
 
 Add or edit themes in [`Themes.scala`](src/main/scala/dev/cookingchaos/Themes.scala) — a theme is
 just a block palette + dish list + timing modifiers.
@@ -112,6 +131,7 @@ just a block palette + dish list + timing modifiers.
 | Fresh Bread | 120 | Wheat → crafting table (vanilla recipe) |
 | Forest Stew | 150 | Bowl + 2 mushrooms → crafting table (vanilla mushroom stew) |
 | Birthday Cake | 250 | Wheat + sugar + egg + milk bucket → crafting table (vanilla cake) |
+| Cottage Rabbit Stew | 180 | Rabbit → **chop** → stove, potato → stove, + carrot + mushroom + bowl → crafting table (vanilla rabbit stew) |
 
 ## Building
 

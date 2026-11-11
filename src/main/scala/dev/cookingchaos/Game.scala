@@ -64,6 +64,12 @@ object Game:
   private val roundSeconds = 300
   private var tutorial = false
   private val tutorialSteps = mutable.Map[UUID, Int]()
+  // difficulty scaling from cook levels, recomputed at round start
+  private var diffLevel = 1
+  private var effTimeScale = 1.0
+  private var effOrderGap = 12
+  private var effBurnGrace = 240L
+  private var completedOrders = 0
   private val participants = mutable.LinkedHashSet[UUID]()
   private var score = 0
   private var combo = 0
@@ -153,6 +159,15 @@ object Game:
     if participants.isEmpty then return "Nobody in the lobby. Use /cook join first."
     if themeId.nonEmpty && setTheme(themeId).isEmpty then
       return s"Unknown theme '$themeId'. Use /cook themes to list them."
+    diffLevel = Leaderboard.maxLevelOf(server, participants)
+    if theme.unlockLevel > diffLevel then
+      return s"${theme.name} is locked until cook level ${theme.unlockLevel} (best level here: $diffLevel). Keep cooking to unlock it!"
+    // higher cook levels tighten every timer: -3% order time, -0.5s order gap, -5% burn grace per level
+    val d = (diffLevel - 1).toDouble
+    effTimeScale = theme.timeScale * math.max(0.7, 1.0 - 0.03 * d)
+    effOrderGap = math.max(5, (theme.orderGapSeconds - (0.5 * d)).toInt)
+    effBurnGrace = (theme.burnGraceTicks * math.max(0.5, 1.0 - 0.05 * d)).toLong
+    completedOrders = 0
     phase = Phase.Running
     score = 0
     combo = 0
@@ -171,7 +186,7 @@ object Game:
     broadcast(
       server,
       Component
-        .literal(s"The ${theme.name} kitchen is OPEN! Serve orders at the bell before time runs out.")
+        .literal(s"The ${theme.name} kitchen is OPEN! Serve orders at the bell before time runs out. Difficulty level: $diffLevel.")
         .withStyle(ChatFormatting.GOLD)
     )
     s"Round started in ${theme.name} with ${participants.size} cook(s)."
@@ -204,7 +219,7 @@ object Game:
             .literal(s"${itemName(st.output)} is ready on the stove - grab it before it burns!")
             .withStyle(ChatFormatting.YELLOW)
         )
-      else if st.state == 2 && elapsedTicks - st.readyAtTick > theme.burnGraceTicks then
+      else if st.state == 2 && elapsedTicks - st.readyAtTick > effBurnGrace then
         st.state = 0
         st.output = null
         broadcast(server, Component.literal("Something burned on the stove!").withStyle(ChatFormatting.RED))
@@ -230,9 +245,9 @@ object Game:
       val dish = theme.dishes(rng.nextInt(theme.dishes.size))
       val servings = if rng.nextInt(100) < 30 then 2 else 1
       val order = Order(dish, servings)
-      order.deadlineTick = elapsedTicks + (dish.timeLimitSeconds * theme.timeScale).toLong * 20L
+      order.deadlineTick = elapsedTicks + (dish.timeLimitSeconds * effTimeScale).toLong * 20L
       orders += order
-      nextOrderTick = elapsedTicks + theme.orderGapSeconds * 20L
+      nextOrderTick = elapsedTicks + effOrderGap.toInt * 20L
       broadcast(
         server,
         Component
@@ -259,6 +274,7 @@ object Game:
             finishTutorial(player)
             return
           orders -= order
+          completedOrders += 1
           combo += 1
           bestCombo = math.max(bestCombo, combo)
           val points = order.dish.points * math.max(1, combo)
@@ -377,6 +393,23 @@ object Game:
         .literal(s"$reason Final score: $score (best combo x$bestCombo)")
         .withStyle(ChatFormatting.GOLD)
     )
+    val xpEarned = score / 10 + completedOrders * 5
+    val (records, levelUps) = Leaderboard.record(server, participants.toList, score, bestCombo, xpEarned)
+    if records.nonEmpty then
+      broadcast(
+        server,
+        Component.literal(s"New leaderboard record${if records.size > 1 then "s" else ""}: ${records.mkString(", ")}! See /cook leaderboard").withStyle(
+          ChatFormatting.LIGHT_PURPLE
+        )
+      )
+    levelUps.foreach { (name, lvl) =>
+      val unlocked = Themes.all.filter(_.unlockLevel == lvl).map(_.name)
+      val unlockText = if unlocked.nonEmpty then s" Unlocked: ${unlocked.mkString(", ")}!" else ""
+      broadcast(
+        server,
+        Component.literal(s"$name reached cook level $lvl!$unlockText").withStyle(ChatFormatting.LIGHT_PURPLE)
+      )
+    }
     participants.foreach { uuid =>
       Option(server.getPlayerList.getPlayer(uuid)).foreach { p =>
         p.connection.send(ClientboundSetTitlesAnimationPacket(10, 70, 20))

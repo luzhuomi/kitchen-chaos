@@ -57,6 +57,7 @@ object CookCommand:
           .`then`(Commands.literal("tutorial").executes(ctx => withPlayer(ctx, Game.startTutorial)))
           .`then`(Commands.literal("themes").executes(ctx => themes(ctx)))
           .`then`(Commands.literal("menu").executes(ctx => menu(ctx)))
+          .`then`(Commands.literal("leaderboard").executes(ctx => Leaderboard.show(ctx.getSource.getServer, ctx.getSource)))
       )
     )
 
@@ -69,16 +70,24 @@ object CookCommand:
     val id = StringArgumentType.getString(ctx, "theme")
     Game.setTheme(id) match
       case Some(t) =>
-        s"Theme set to ${t.name}. " + (if split then KitchenBuilder.buildSplit(p) else KitchenBuilder.build(p))
+        val lvl = Leaderboard.levelOf(p.server, p.getUUID)
+        if t.unlockLevel > lvl then s"${t.name} is locked until cook level ${t.unlockLevel} (your level: $lvl). Earn XP by playing rounds!"
+        else s"Theme set to ${t.name}. " + (if split then KitchenBuilder.buildSplit(p) else KitchenBuilder.build(p))
       case None => s"Unknown theme '$id'. Use /cook themes to list them."
 
   private def themes(ctx: CommandContext[CommandSourceStack]): Int =
-    ctx.getSource.sendSuccess(() => Component.literal("Kitchen themes:").withStyle(ChatFormatting.GOLD), false)
+    val myLevel = ctx.getSource.getEntity match
+      case p: ServerPlayer => Leaderboard.levelOf(ctx.getSource.getServer, p.getUUID)
+      case _ => Leaderboard.MaxLevel
+    ctx.getSource.sendSuccess(
+      () => Component.literal(s"Kitchen themes (your cook level: $myLevel):").withStyle(ChatFormatting.GOLD),
+      false
+    )
     Themes.all.foreach { t =>
-      ctx.getSource.sendSuccess(
-        () => Component.literal(s"/cook kitchen ${t.id} - ${t.name} (${t.dishes.size} dishes)").withStyle(ChatFormatting.AQUA),
-        false
-      )
+      val (text, style) =
+        if t.unlockLevel > myLevel then (s"  [locked, level ${t.unlockLevel}] ${t.name}", ChatFormatting.GRAY)
+        else (s"/cook kitchen ${t.id} - ${t.name} (${t.dishes.size} dishes)", ChatFormatting.AQUA)
+      ctx.getSource.sendSuccess(() => Component.literal(text).withStyle(style), false)
     }
     1
 
@@ -89,7 +98,7 @@ object CookCommand:
           .literal(
             "Kitchen Chaos: /cook tutorial (learn by playing!), /cook themes, /cook kitchen [theme] (op), " +
               "/cook kitchen split [theme] (op, two-room map), /cook clear [all] (op), /cook join, " +
-              "/cook start [theme] (op), /cook stop (op), /cook leave, /cook menu. " +
+              "/cook start [theme] (op), /cook stop (op), /cook leave, /cook menu, /cook leaderboard. " +
               "Barrel = pantry, campfire/smoker = stove, bell = service window."
           )
           .withStyle(ChatFormatting.YELLOW),

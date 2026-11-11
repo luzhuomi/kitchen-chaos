@@ -27,5 +27,6 @@ object Recipes:
     Items.COD -> (Items.COOKED_COD, 160, None),
     Items.SALMON -> (Items.COOKED_SALMON, 160, Some(PrepKind.Washed)),
     Items.PORKCHOP -> (Items.COOKED_PORKCHOP, 160, None),
-    Items.MUTTON -> (Items.COOKED_MUTTON, 160, None)
+    Items.MUTTON -> (Items.COOKED_MUTTON, 160, None),
+    Items.RABBIT -> (Items.COOKED_RABBIT, 160, Some(PrepKind.Chopped))
   )
